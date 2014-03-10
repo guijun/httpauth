@@ -1,4 +1,4 @@
-package goauth
+package httpauth
 
 import (
     "testing"
@@ -133,6 +133,26 @@ func TestUsers(t *testing.T) {
         t.Fatal("User email not correct.")
     }
     if !bytes.Equal(u2.Hash, []byte("passwordhash2")) {
+        t.Fatal("User password not correct.")
+    }
+}
+
+func TestUpdateUser_gob(t *testing.T) {
+    user2 := UserData{"username", "email", []byte("newpassword")}
+    if err := b.SaveUser(user2); err != nil {
+        t.Fatalf("SaveUser gob error: %v", err)
+    }
+    u2, ok := b.User("username")
+    if !ok {
+        t.Fatal("Updated user not found")
+    }
+    if u2.Username != "username" {
+        t.Fatal("Username not correct.")
+    }
+    if u2.Email != "email" {
+        t.Fatal("User email not correct.")
+    }
+    if !bytes.Equal(u2.Hash, []byte("newpassword")) {
         t.Fatal("User password not correct.")
     }
 }

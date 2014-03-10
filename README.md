@@ -1,14 +1,21 @@
-# Wombats Go Authentication
-[![GoDoc](https://godoc.org/github.com/Wombats/goauth?status.png)](https://godoc.org/github.com/Wombats/goauth)
+# Go Session Authentication
+[![GoDoc](https://godoc.org/github.com/apexskier/httpauth?status.png)](https://godoc.org/github.com/Wombats/goauth)
 
 This package uses the [Gorilla web toolkit](http://www.gorillatoolkit.org/)'s
-sessions and context packages to implement a user authorization system for web
-servers written in Go.
+sessions and package to implement a user authorization system for web servers
+written in Go.
+
+Multiple user data storage backends are available, and new ones can be
+implemented relatively easily.
+
+- [File based](https://godoc.org/github.com/apexskier/goauth#NewGobFileAuthBackend) ([gob](http://golang.org/pkg/encoding/gob/))
+- [Various SQL Databases](https://godoc.org/github.com/apexskier/goauth#NewSqlAuthBackend)
 
 Using [bcrypt](http://codahale.com/how-to-safely-store-a-password/) for
 password hashing.
 
-See examples for example usage.
+Run `go run server.go` from the examples directory and visit `localhost:8080`
+for an example. You can login with the username and password "test".
 
 **Note**
 
@@ -21,6 +28,4 @@ know](https://github.com/Wombats/goauth/issues/new).
 ### TODO
 
 - User roles
-- Documentation/Better comments
-- Testing
-- User data validation for registration
+- SMTP email validation (key based)

@@ -1,20 +1,25 @@
-// Package goauth implements cookie/session based authentication. Intended for
-// use with the net/http or github.com/gorilla/mux packages, but may work with
-// github.com/codegangsta/martini as well. Internally, credentials are stored
-// as a username + password hash, computed with bcrypt.
+// Package httpauth implements cookie/session based authentication and
+// authorization. Intended for use with the net/http or github.com/gorilla/mux
+// packages, but may work with github.com/codegangsta/martini as well.
+// Credentials are stored as a username + password hash, computed with bcrypt.
+//
+// Two user storage systems are currently implemented: file based (encoding/gob)
+// and sql databases (database/sql).
 //
 // Users can be redirected to the page that triggered an authentication error.
 //
 // Messages describing the reason a user could not authenticate are saved in a
-// cookie, and can be accessed with the goauth.Messages function.
-package goauth
+// cookie, and can be accessed with the Messages function.
+//
+// Example source can be found at
+// https://github.com/apexskier/httpauth/blob/master/examples/server.go
+package httpauth
 
 import (
     "errors"
     "net/http"
     "code.google.com/p/go.crypto/bcrypt"
     "github.com/gorilla/sessions"
-    "github.com/gorilla/context"
 )
 
 // UserData represents a single user. It contains the users username and email
@@ -116,6 +121,45 @@ func (a Authorizer) Register(rw http.ResponseWriter, req *http.Request, u string
     return nil
 }
 
+// Update changes data for an existing user. Needs thought...
+func (a Authorizer) Update(rw http.ResponseWriter, req *http.Request, p string, e string) error {
+    var (
+        hash []byte
+        email string
+    )
+    authSession, err := a.cookiejar.Get(req, "auth")
+    username, ok := authSession.Values["username"].(string)
+    if !ok {
+        return errors.New("Not logged in")
+    }
+    user, ok := a.backend.User(username)
+    if !ok {
+        a.addMessage(rw, req, "User doesn't exist.")
+        return errors.New("user doesn't exists")
+    }
+    if p != "" {
+        hash, err = bcrypt.GenerateFromPassword([]byte(username + p), 8)
+        if err != nil {
+            return errors.New("couldn't save password: " + err.Error())
+        }
+    } else {
+        hash = user.Hash
+    }
+    if e != "" {
+        email = e
+    } else {
+        email = user.Email
+    }
+
+    newuser := UserData{username, email, hash}
+
+    err = a.backend.SaveUser(newuser)
+    if err != nil {
+        a.addMessage(rw, req, err.Error())
+    }
+    return nil
+}
+
 // Authorize checks if a user is logged in and returns an error on failed
 // authentication. If redirectWithMessage is set, the page being authorized
 // will be saved and a "Login to do that." message will be saved to the
@@ -127,7 +171,7 @@ func (a Authorizer) Authorize(rw http.ResponseWriter, req *http.Request, redirec
         if redirectWithMessage {
             a.goBack(rw, req)
         }
-        return errors.New("new authorization session. Possible restart of server")
+        return errors.New("new authorization session")
     }
     if authSession.IsNew {
         if redirectWithMessage {
@@ -155,8 +199,23 @@ func (a Authorizer) Authorize(rw http.ResponseWriter, req *http.Request, redirec
         }
         return errors.New("user not logged in")
     }
-    context.Set(req, "username", username)
     return nil
+}
+
+// CurrentUser returns the currently logged in user and a boolean validating
+// the information.
+func (a Authorizer) CurrentUser(rw http.ResponseWriter, req *http.Request) (user UserData, ok bool) {
+    if err := a.Authorize(rw, req, false); err != nil {
+        return user, false
+    }
+    authSession, _ := a.cookiejar.Get(req, "auth")
+
+    username, ok := authSession.Values["username"].(string)
+    if !ok {
+        return user, ok
+    }
+    user, ok = a.backend.User(username)
+    return user, ok
 }
 
 // Logout clears an authentication session and add a logged out message.
